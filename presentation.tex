@@ -1,0 +1,146 @@
+\documentclass[onlymath]{beamer}
+\usefonttheme{serif}
+\usetheme{default}
+\title{
+    Minimum Snap Trajectory Generation and Control for Quadrotors
+}
+\author{
+    Michael Koval \\
+    mkoval@eden.rutgers.edu \\
+    Electrical \& Computer Engineering \\
+    Rutgers University
+}
+\date{April 26, 2012}
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{State Space}
+\begin{itemize}
+\item Pose of the robot is $\langle x, y, z, \phi, \theta, \psi \rangle \in
+      \mathbb{R}^6$
+    \begin{itemize}
+    \item $\phi$, $\theta$, and $\psi$ are Z - X - Y Euler angles
+    \end{itemize}
+\item State is pose along with its first derivatives:
+    \begin{itemize}
+    \item $\vec{x} = \langle x, y, z, \phi, \theta, \psi, \dot{x}, \dot{y},
+          \dot{z}, p , q, r \rangle \in \mathbb{R}^{12}$
+    \item $p$, $q$, and $r$ are the components of angular velocity
+    \end{itemize}
+\item Control $\vec{\omega} \in \mathbb{R}^4$, the four rotor speeds
+    \begin{itemize}
+    \item Changes net force, $F$, and the body moments, $M_i$
+    \item System is governed by $\vec{u} = \langle F, M_x, M_y, M_z \rangle
+          = Q \vec{\omega}^2$
+    \end{itemize}
+\end{itemize}
+\begin{center}
+    \textbf{This system is underactuated.} \\
+    \small
+    (There are 12 state variables and only four control variables)
+\end{center}
+\end{frame}
+
+\begin{frame}{Control Algorithm}
+\begin{itemize}
+\item Control only four outputs, $\sigma = \langle x, y, z, \psi \rangle$
+    \begin{itemize}
+    \item State and controls written in terms of $\sigma$, $\dot{\sigma}$, and
+          $\ddot{\sigma}$
+    \item Planning will done in this smaller subspace
+    \end{itemize}
+\item Possible to derive a non-linear controller for $\sigma$
+    \begin{itemize}
+    \item See ?? and ?? for details about the controller
+    \item ...but we're only interested in trajectory planning
+    \end{itemize}
+\item Keyframe ($\sigma_i$): specifies the pose at time $t_i$
+    \begin{itemize}
+    \item ``Snapshop'' of position and yaw at a given time
+    \item Valid trajectory must pass through all keyframes
+    \end{itemize}
+\end{itemize}
+\begin{center}
+    \textbf{How do we generate a smooth trajectory that passes through a
+    sequence of keyframes?}
+\end{center}
+\end{frame}
+
+\begin{frame}{Trajectory Generation}
+\begin{itemize}
+\item Interpolate using $n$-th degree polynomials
+\begin{equation*}
+    \sigma(t) = \begin{cases}
+        \sigma_1(t) = \sum_{i = 0}^n \sigma_{i1} t^i & t_0 \le t < t_1 \\
+        \sigma_2(t) = \sum_{i = 0}^n \sigma_{i2} t^i & t_1 \le t < t_2 \\
+        \vdots & \\
+        \sigma_m(t) = \sum_{i = 0}^n \sigma_{im} t^i & t_{m-1} \le t \le t_m \\
+    \end{cases}
+\end{equation*}
+
+\item Trajectory must satisfy these requirements:
+    \begin{enumerate}
+    \item Is as ``smooth'' as possible $\rightarrow$ \textbf{objective}
+    \item Pass through all keyframes $\rightarrow$ \textbf{constraint}
+    \item Continuity of state and derivatives $\rightarrow$ \textbf{constraint}
+    \item Stays within a safe corridor $\rightarrow$ \textbf{constraint}
+    \end{enumerate}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Non-Convex Optimization Problem}
+    \begin{align*}
+    & \text{minimize}
+        & & \int_{t_0}^{t_m}{ \left[
+            \mu_r    \left|\left| \frac{d^{k_r} \vec{r}}{d t^{k_r}} \right|\right|^2
+          + \mu_\psi \left( \frac{d^{k_\psi} \psi}{d t^{k_\psi}} \right)^2
+        \right] dt} \\
+    & \text{subject to}
+        & & \sigma_T(t_i) = \hat{\sigma}_i,
+        & & i = 1, ..., m \\
+    & & & \vec{r}_i(t_i) = \vec{r}_{i + 1}(t_i),
+        & & i = 1, ..., m - 1 \\
+    & & & \psi_i(t_i) = \psi_{i + 1}(t_i),
+        & & i = 1, ..., m - 1 \\
+    & & & \nabla_t^j \vec{r_i}(t_i) = \nabla_t^j \vec{r}_{i + 1}(t_i),
+      & & i = 1, ..., m - 1, \, j = 1, ..., k_r \\
+    & & & \frac{d^j \psi_i}{d t^j} \big|_{t = t_i} = \frac{d^j \psi_{i + 1}}{d t^j} \big|_{t = t_i},
+      & & i = 1, ..., m - 1, \, j = 1, ..., k_\psi \\
+    & & & ||\vec{d}_i(t)||_\infty \le \delta_i,
+      & & i = 1, ..., m - 1, \, t_i \le t < t_{i + 1}
+    \end{align*}
+    \textbf{Note:} $\vec{d}_i(t)$ the distance from $\vec{r}(t)$ to the line from
+          $\hat{\sigma}_{i - 1}$ to $\hat{\sigma}_i$
+\end{frame}
+
+\begin{frame}{Rewritten as a Quadratic Program}
+    \begin{align*}
+    & \text{minimize}
+        & & c^T H c + f^T c \\
+    & \text{subject to}
+        & & \sigma_T(t_i) = \hat{\sigma}_i,
+        & & i = 1, ..., m \\
+    & & & \vec{r}_i(t_i) = \vec{r}_{i + 1}(t_i),
+        & & i = 1, ..., m - 1 \\
+    & & & \psi_i(t_i) = \psi_{i + 1}(t_i),
+        & & i = 1, ..., m - 1 \\
+    & & & \vec{x} \cdot \vec{d}\left(t_i + \frac{j}{1 + n_c}\left(t_{i + 1} - t_i\right)\right)
+          \le \delta_i
+        & & i = 1, ..., m - 1, j = 1, ..., n_c \\
+    & & & \vec{x} \cdot \vec{d}\left(t_i + \frac{j}{1 + n_c}\left(t_{i + 1} - t_i\right)\right)
+          \ge -\delta_i
+        & & i = 1, ..., m - 1, j = 1, ..., n_c \\
+    & & & Ac \preceq b
+    \end{align*}
+    where
+    \begin{align*}
+        c   &= \langle x_{ij}, y_{ij}, z_{ij}, \psi_{ij} \rangle \in \mathbb{R}^{4nm} \\
+        n_c &= \text{number of segments used to discretize paths between nodes}
+        H   &= \text{discrete approximation of the 
+    \end{align*}
+\end{frame}
+
+\end{document}
