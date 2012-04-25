@@ -2,7 +2,9 @@
 \usefonttheme{serif}
 \usetheme{default}
 \title{
-    Minimum Snap Trajectory Generation and Control for Quadrotors
+    Minimum Snap Trajectory Generation and Control for Quadrotors \\
+    \& \\
+    Reconfiguration Algorithms for Mobile Robotic Networks
 }
 \author{
     Michael Koval \\
@@ -17,108 +19,89 @@
 \titlepage
 \end{frame}
 
-\begin{frame}{State Space}
-\begin{itemize}
-\item Pose of the robot is $\langle x, y, z, \phi, \theta, \psi \rangle \in
-      \mathbb{R}^6$
+\begin{frame}{Problem Statement}
     \begin{itemize}
-    \item $\phi$, $\theta$, and $\psi$ are Z - X - Y Euler angles
+    \item Pose of the robot is $\langle x, y, z, \phi, \theta, \psi \rangle \in
+          \mathbb{R}^6$
+        \begin{itemize}
+        \item $\phi$, $\theta$, and $\psi$ are Z - X - Y Euler angles
+        \end{itemize}
+    \item State is pose along with its first derivatives:
+        \begin{itemize}
+        \item $\vec{x} = \langle x, y, z, \phi, \theta, \psi, \dot{x}, \dot{y},
+              \dot{z}, p , q, r \rangle \in \mathbb{R}^{12}$
+        \item $p$, $q$, and $r$ are the components of angular velocity
+        \end{itemize}
+    \item Pretend the quadrotor's controls are $\sigma = \langle x, y, z, \psi \rangle$
+        \begin{itemize}
+        \item There exists a controller that maps $\sigma$, $\dot{\sigma}$, and
+              $\ddot{\sigma}$ to rotor speeds
+        \item Planning will done in this smaller subspace
+        \end{itemize}
+    \item \textbf{Trajectory}: Series of controls, $\sigma_T(t)$, executed over time
+    \item \textbf{Keyframe} ($\hat{\sigma}_i$): desired pose at time $t_i$;
+          i.e. $\sigma_T(t_i) = \hat{\sigma}_i$
+        \begin{itemize}
+        \item Three-dimensional ``waypoints'' that include yaw
+        \item Behavior between keyframes is intentionally left unspecified
+        \end{itemize}
     \end{itemize}
-\item State is pose along with its first derivatives:
-    \begin{itemize}
-    \item $\vec{x} = \langle x, y, z, \phi, \theta, \psi, \dot{x}, \dot{y},
-          \dot{z}, p , q, r \rangle \in \mathbb{R}^{12}$
-    \item $p$, $q$, and $r$ are the components of angular velocity
-    \end{itemize}
-\item Control $\vec{\omega} \in \mathbb{R}^4$, the four rotor speeds
-    \begin{itemize}
-    \item Changes net force, $F$, and the body moments, $M_i$
-    \item System is governed by $\vec{u} = \langle F, M_x, M_y, M_z \rangle
-          = Q \vec{\omega}^2$
-    \end{itemize}
-\end{itemize}
 \begin{center}
-    \textbf{This system is underactuated.} \\
-    \small
-    (There are 12 state variables and only four control variables)
-\end{center}
-\end{frame}
-
-\begin{frame}{Control Algorithm}
-\begin{itemize}
-\item Control only four outputs, $\sigma = \langle x, y, z, \psi \rangle$
-    \begin{itemize}
-    \item State and controls written in terms of $\sigma$, $\dot{\sigma}$, and
-          $\ddot{\sigma}$
-    \item Planning will done in this smaller subspace
-    \end{itemize}
-\item Possible to derive a non-linear controller for $\sigma$
-    \begin{itemize}
-    \item See ?? and ?? for details about the controller
-    \item ...but we're only interested in trajectory planning
-    \end{itemize}
-\item Keyframe ($\sigma_i$): specifies the pose at time $t_i$
-    \begin{itemize}
-    \item ``Snapshop'' of position and yaw at a given time
-    \item Valid trajectory must pass through all keyframes
-    \end{itemize}
-\end{itemize}
-\begin{center}
-    \textbf{How do we generate a smooth trajectory that passes through a
-    sequence of keyframes?}
+    \textbf{How do we generate a ``good'' trajectory that passes through an
+            arbitrary sequence of keyframes?}
 \end{center}
 \end{frame}
 
 \begin{frame}{Trajectory Generation}
-\begin{itemize}
-\item Interpolate using $n$-th degree polynomials
-\begin{equation*}
-    \sigma(t) = \begin{cases}
-        \sigma_1(t) = \sum_{i = 0}^n \sigma_{i1} t^i & t_0 \le t < t_1 \\
-        \sigma_2(t) = \sum_{i = 0}^n \sigma_{i2} t^i & t_1 \le t < t_2 \\
-        \vdots & \\
-        \sigma_m(t) = \sum_{i = 0}^n \sigma_{im} t^i & t_{m-1} \le t \le t_m \\
-    \end{cases}
-\end{equation*}
-
-\item Trajectory must satisfy these requirements:
-    \begin{enumerate}
-    \item Is as ``smooth'' as possible $\rightarrow$ \textbf{objective}
-    \item Pass through all keyframes $\rightarrow$ \textbf{constraint}
-    \item Continuity of state and derivatives $\rightarrow$ \textbf{constraint}
-    \item Stays within a safe corridor $\rightarrow$ \textbf{constraint}
-    \end{enumerate}
-\end{itemize}
+    \begin{itemize}
+    \item Interpolate between keyframes using $n$-th degree splines:
+    \begin{equation*}
+        \sigma_T(t) = \begin{cases}
+            \sigma_{T1}(t) = \sum_{i = 0}^n \sigma_{Ti1} t^i & :\; t_0 \le t < t_1 \\
+            \sigma_{T2}(t) = \sum_{i = 0}^n \sigma_{Ti2} t^i & :\; t_1 \le t < t_2 \\
+            \vdots & \\
+            \sigma_{Tm}(t) = \sum_{i = 0}^n \sigma_{Tim} t^i & :\; t_{m-1} \le t \le t_m
+        \end{cases}
+    \end{equation*}
+        \begin{itemize}
+        \item $\sigma_T(t)$ is parameterized by $\sigma_{ij}$ for $i = 0, ..., n$ and $j = 1, ..., m$
+        \item Enforce continuity of derivatives at the knots
+        \end{itemize}
+    \item Constrain the path to a ``safe corridor'' between keyframes
+        \begin{itemize}
+        \item Let $\vec{r}_i(t)$ be the $x$, $y$, and $z$ components of $\sigma_{Ti}$
+        \item $\vec{d}_i(t) = \left(\vec{r}_T(t) - \vec{r}_i\right) - \left[\left(\vec{r}_T(t) - \vec{r}_i\right) \cdot \vec{t}_i\right] \vec{t}_i$ is the offset
+        \item Constrain $\left|\left| \vec{d}_i(t) \right|\right|_\infty \le \delta_i$ where $\delta_i$ is the corridor width
+        \end{itemize}
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Non-Convex Optimization Problem}
     \begin{align*}
-    & \text{minimize}
+    & \underset{\sigma_{ij}}{\text{minimize}}
         & & \int_{t_0}^{t_m}{ \left[
             \mu_r    \left|\left| \frac{d^{k_r} \vec{r}}{d t^{k_r}} \right|\right|^2
           + \mu_\psi \left( \frac{d^{k_\psi} \psi}{d t^{k_\psi}} \right)^2
         \right] dt} \\
     & \text{subject to}
         & & \sigma_T(t_i) = \hat{\sigma}_i,
+        & & i = 0, ..., m \\
+    & & & \vec{r}_{i - 1}(t_i) = \vec{r}_i(t_i),
         & & i = 1, ..., m \\
-    & & & \vec{r}_i(t_i) = \vec{r}_{i + 1}(t_i),
-        & & i = 1, ..., m - 1 \\
-    & & & \psi_i(t_i) = \psi_{i + 1}(t_i),
-        & & i = 1, ..., m - 1 \\
-    & & & \nabla_t^j \vec{r_i}(t_i) = \nabla_t^j \vec{r}_{i + 1}(t_i),
-      & & i = 1, ..., m - 1, \, j = 1, ..., k_r \\
-    & & & \frac{d^j \psi_i}{d t^j} \big|_{t = t_i} = \frac{d^j \psi_{i + 1}}{d t^j} \big|_{t = t_i},
-      & & i = 1, ..., m - 1, \, j = 1, ..., k_\psi \\
+    & & & \psi_{i - 1}(t_i) = \psi_i(t_i),
+        & & i = 1, ..., m \\
+    & & & \nabla_t^j \vec{r}_{i - 1}(t_i) = \nabla_t^j \vec{r}_i(t_i),
+      & & i = 1, ..., m, \, j = 1, ..., k_r \\
+    & & & \frac{d^j \psi_{i - 1}}{d t^j} \big|_{t = t_i} = \frac{d^j \psi_i}{d t^j} \big|_{t = t_i},
+      & & i = 1, ..., m, \, j = 1, ..., k_\psi \\
     & & & ||\vec{d}_i(t)||_\infty \le \delta_i,
-      & & i = 1, ..., m - 1, \, t_i \le t < t_{i + 1}
+      & & i = 1, ..., m, \, t_i \le t < t_{i + 1}
     \end{align*}
-    \textbf{Note:} $\vec{d}_i(t)$ the distance from $\vec{r}(t)$ to the line from
-          $\hat{\sigma}_{i - 1}$ to $\hat{\sigma}_i$
 \end{frame}
 
 \begin{frame}{Rewritten as a Quadratic Program}
     \begin{align*}
-    & \text{minimize}
+    & \underset{\sigma_{ij}}{\text{minimize}}
         & & c^T H c + f^T c \\
     & \text{subject to}
         & & \sigma_T(t_i) = \hat{\sigma}_i,
@@ -133,14 +116,40 @@
     & & & \vec{x} \cdot \vec{d}\left(t_i + \frac{j}{1 + n_c}\left(t_{i + 1} - t_i\right)\right)
           \ge -\delta_i
         & & i = 1, ..., m - 1, j = 1, ..., n_c \\
-    & & & Ac \preceq b
+    & \text{where} \\
+    & & c   &= \langle x_{ij}, y_{ij}, z_{ij}, \psi_{ij} \rangle \in \mathbb{R}^{4nm} \\
+    & & H   &= \text{discrete approximation of $k_r$-th order derivative} \\
+    & & f   &= \text{discrete approximation of $k_\psi$-th order derivative} \\
+    & & n_c &= \text{number of samples per path segment} \\
     \end{align*}
-    where
-    \begin{align*}
-        c   &= \langle x_{ij}, y_{ij}, z_{ij}, \psi_{ij} \rangle \in \mathbb{R}^{4nm} \\
-        n_c &= \text{number of segments used to discretize paths between nodes}
-        H   &= \text{discrete approximation of the 
-    \end{align*}
+\end{frame}
+
+\begin{frame}{Summary}
+    Summary:
+    \begin{enumerate}
+    \item Define a series of keypoints and corresponding corridor widths
+    \item Solve the optimization problem for the parameters of $\sigma_T(t)$
+    \item Use a controller to follow $\sigma_T(t)$ by controlling the rotor speeds
+    \end{enumerate}
+    \vspace{1em}
+    Possible to add additional constraints to the optimization problem:
+    \begin{itemize}
+    \item initial conditions (e.g. starting velocity) $\Rightarrow$ constraint
+    \item final conditions (e.g. ending velocity) $\Rightarrow$ constraint
+    \item intermediate conditions $\Rightarrow$ constraint
+    \end{itemize}
+    \vspace{1em}
+    Also...it is possible to find the optimal relative segment lengths by
+    solving a separate convex optimization problem!
+\end{frame}
+
+\begin{frame}
+\end{frame}
+
+\begin{frame}{Problem Statement}
+    \begin{itemize}
+    \item 
+    \end{itemize}
 \end{frame}
 
 \end{document}
